@@ -1,27 +1,27 @@
-import React, { useEffect, useState } from 'react';
-import { connect, Dispatch, history, Loading, useIntl } from 'umi';
-import { Button, Checkbox, Form, Image, Input } from 'antd';
-import { Base64 } from "js-base64";
-import { Footer } from '@/components';
 import AccountIcon from '@/asset/login/account-line.svg';
 import LockIcon from '@/asset/login/lock-line.svg';
 import CloseIcon from '@/asset/login/password-close.svg';
 import OpenIcon from '@/asset/login/password-open.svg';
+import { Footer } from '@/components';
+import { AUTO_CREATE_CONFIG_DEF, LOGIN_KEYS, NOTIFICATION_CONFIG_DEF, REQUEST_CODE, SESSION_STORAGE_KEY, UPLOAD_CALL_CONFIG_DEF } from "@/constant";
+import { Button, Checkbox, Form, Image, Input } from 'antd';
+import { Base64 } from "js-base64";
+import React, { useEffect, useRef, useState } from 'react';
+import { Dispatch, Loading, connect, history, useIntl } from 'umi';
 import styles from './index.less';
-import { REQUEST_CODE, SESSION_STORAGE_KEY } from "@/constant";
 
 interface LoginProps {
     getUser: (obj: LooseObject) => Promise<LooseObject>
     saveUserConfig: (obj: LooseObject) => void
-    save: (obj: LooseObject) => void
     loginLoading: boolean | undefined
 }
 
-const IndexPage: React.FC<LoginProps> = ({ getUser, saveUserConfig, save, loginLoading }) => {
+const IndexPage: React.FC<LoginProps> = ({ getUser, saveUserConfig, loginLoading }) => {
     const [errorMessage, setErrorMessage] = useState('');
     const [remember, setRemember] = useState(true);
     const [form] = Form.useForm();
     const { formatMessage } = useIntl();
+    const userConfig = useRef<LooseObject>({});
 
     const onCheckChange = (e: { target: { checked: boolean | ((prevState: boolean) => boolean) } }) => {
         setRemember(e.target.checked);
@@ -31,7 +31,19 @@ const IndexPage: React.FC<LoginProps> = ({ getUser, saveUserConfig, save, loginL
         setErrorMessage('');
     }
 
-    const loginSuccess = () => {
+    const loginSuccess = (values: LooseObject) => {
+        const config = {
+            ...values,
+            apiKey: remember ? values.apiKey : undefined,
+            autoLogin: remember ?? true,
+            uploadCall: values.uploadCall ?? true,
+            notification: values.notification ?? true,
+            autoCreate: values.autoCreate ?? false,
+            autoCreateConfig: values.autoCreateConfig ?? AUTO_CREATE_CONFIG_DEF,
+            uploadCallConfig: values.uploadCallConfig ?? UPLOAD_CALL_CONFIG_DEF,
+            notificationConfig: values.notificationConfig ?? NOTIFICATION_CONFIG_DEF,
+        }
+        saveUserConfig(config);
         history.replace({ pathname: '/home', });
     }
 
@@ -50,33 +62,10 @@ const IndexPage: React.FC<LoginProps> = ({ getUser, saveUserConfig, save, loginL
                 return
             }
             if (res.organisation_id || res.account_id) {
-                const userConfig = {
+                loginSuccess({
+                    ...userConfig.current,
                     ...values,
-                    apiKey: remember ? apiKey : undefined,
-                    autoLogin: remember ?? true,
-                    uploadCall: values.uploadCall ?? true,
-                    showConfig: values.showConfig ?? {
-                        first: 'Name',
-                        second: 'Phone',
-                        third: 'None',
-                        forth: 'None',
-                        fifth: 'None',
-                    }
-                }
-                save({
-                    ...values,
-                    apiKey: remember ? apiKey : undefined,
-                    uploadCall: values.uploadCall ?? true,
-                    showConfig: values.showConfig ?? {
-                        first: 'Name',
-                        second: 'Phone',
-                        third: 'None',
-                        forth: 'None',
-                        fifth: 'None',
-                    }
-                })
-                saveUserConfig(userConfig);
-                loginSuccess();
+                });
             }
         });
     };
@@ -90,9 +79,55 @@ const IndexPage: React.FC<LoginProps> = ({ getUser, saveUserConfig, save, loginL
                     const userInfo = JSON.parse(data);
                     console.log(userInfo);
                     form.setFieldsValue(userInfo);
-                    if (userInfo.autoLogin) {
+                    userConfig.current = userInfo;
+
+                    // 已登录的与预装配置进行对比
+                    let sameConfig = true;
+
+                    // 有预装配置 走预装配置
+                    const preParamObjectStr = sessionStorage.getItem('preParamObject');
+                    if (preParamObjectStr) {
+                        const preParamObject = JSON.parse(sessionStorage.getItem('preParamObject') || '');
+                        if (preParamObject) {
+                            const formParams: any = {};
+                            Object.keys(preParamObject).forEach((item) => {
+                                LOGIN_KEYS.forEach((element) => {
+                                    if (item.toLowerCase() === element.toLowerCase()) {
+                                        formParams[element] = preParamObject[item];
+                                        if (!sameConfig) {
+                                            return;
+                                        }
+                                        sameConfig = preParamObject[item] === userInfo[element];
+                                    }
+                                });
+                            });
+                            form.setFieldsValue({ ...formParams });
+                        }
+                    }
+
+                    if (userInfo.autoLogin && sameConfig) {
                         onFinish(userInfo);
                     }
+                }
+                else {
+                    // 有预装配置 走预装配置
+                    const preParamObjectStr = sessionStorage.getItem('preParamObject');
+                    if (!preParamObjectStr) {
+                        return;
+                    }
+                    const preParamObject = JSON.parse(preParamObjectStr);
+                    const userInfo: any = { domain: '', apiKey: '' }
+                    if (preParamObject) {
+                        Object.keys(preParamObject).forEach(item => {
+                            Object.keys(userInfo).forEach(element => {
+                                if (item.toLowerCase() === element.toLowerCase()) {
+                                    userInfo[element] = preParamObject[item]
+                                }
+                            })
+                        })
+                        form.setFieldsValue({ ...userInfo })
+                    }
+                    onFinish(userInfo);
                 }
             })
         } catch (e) {
@@ -174,10 +209,6 @@ export default connect(
         saveUserConfig: (payload: LooseObject) => dispatch({
             type: 'global/saveUserConfig',
             payload,
-        }),
-        save: (payload: LooseObject) => dispatch({
-            type: 'global/save',
-            payload
         })
     })
 )(IndexPage);

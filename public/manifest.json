@@ -1,0 +1,14 @@
+{
+  "name": "Freshdesk",
+  "version": "1.0.3.1",
+  "description": "Freshdesk is a cloud-based customer relationship management (CRM) software for businesses of all sizes. Integration with the Wave app improves workflow efficiency and automation.",
+  "icon": "./logo.png",
+  "extend_icon": "./extend_icon.png",
+  "permissions": [
+    "call.listen",
+    "custom.listen",
+    "contact.manage"
+  ],
+  "plugin_type": "background",
+  "minimum_SDK_version": "1.0.4"
+}

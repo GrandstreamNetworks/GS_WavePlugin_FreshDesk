@@ -1,14 +1,10 @@
-import { Effect, Reducer, history } from "umi";
 import { getUser } from '@/services/global';
+import { Effect, Reducer, history } from "umi";
 
 export interface GlobalModelState {
     userConfig: LooseObject
     user: LooseObject
     connectState: string
-    uploadCall: boolean,
-    showConfig: LooseObject,
-    domain: string,
-    callState: Map<string, boolean>
 }
 
 export interface GlobalModelType {
@@ -18,8 +14,7 @@ export interface GlobalModelType {
         getUser: Effect
         saveUserConfig: Effect
         logout: Effect
-        uploadCallChange: Effect
-        saveShowConfig: Effect
+        userConfigChange: Effect
     }
     reducers: {
         save: Reducer<GlobalModelState>
@@ -32,14 +27,10 @@ const GlobalModal: GlobalModelType = {
         user: {},
         userConfig: {},
         connectState: 'SUCCESS',
-        uploadCall: true,
-        showConfig: {},
-        domain: '',
-        callState: new Map(),
     },
 
     effects: {
-        * getUser({ payload }, { call, put }) {
+        * getUser({ payload }, { call, put }): any {
             const res = yield call(getUser, payload);
             const connectState = res?.code || 'SUCCESS';
             if (res.organisation_id || res.account_id) {
@@ -73,37 +64,17 @@ const GlobalModal: GlobalModelType = {
             history.replace({ pathname: 'login' })
         },
 
-        * uploadCallChange({ payload }, { put, select }) {
+        * userConfigChange({ payload }, { put, select }) {
             const { userConfig } = yield select((state: any) => state.global);
-            userConfig.uploadCall = payload;
+            const newConfig = {
+                ...userConfig,
+                ...payload,
+            }
             yield put({
                 type: 'saveUserConfig',
-                payload: userConfig,
-            })
-            yield put({
-                type: 'save',
-                payload: {
-                    uploadCall: payload,
-                }
+                payload: newConfig,
             })
         },
-
-        * saveShowConfig({ payload }, { put, select }) {
-            const { userConfig } = yield select((state: any) => state.global);
-            console.log(userConfig);
-            userConfig.showConfig = payload;
-            yield put({
-                type: 'saveUserConfig',
-                payload: userConfig,
-            })
-            yield put({
-                type: 'save',
-                payload: {
-                    showConfig: payload,
-                }
-            })
-        },
-
 
         * saveUserConfig({ payload }, { put }) {
             console.log(payload);
